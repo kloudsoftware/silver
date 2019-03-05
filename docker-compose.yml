@@ -1,0 +1,31 @@
+version: "3"
+
+services:
+  redis:
+    image: redis:latest
+    ports:
+    - 6380:6379
+  db:
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: db
+    image: mysql:5.7
+    ports:
+    - 3306:3306
+    volumes:
+    - ./mysql/lib:/var/lib/mysql
+    - ./mysql/cnf:/etc/mysql/conf.d
+    - ./mysql/log:/var/log/mysql
+  dbadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    links:
+    - db:db
+    ports:
+    - 8084:80
+  silver:
+    image: silver
+    links:
+    - redis:redis
+    - db:db
+    ports:
+        - 8081:8081

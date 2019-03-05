@@ -1,0 +1,41 @@
+buildscript {
+    ext {
+        springBootVersion = '2.1.0.RELEASE'
+    }
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath("org.springframework.boot:spring-boot-gradle-plugin:${springBootVersion}")
+    }
+}
+
+apply plugin: 'java'
+apply plugin: 'eclipse'
+apply plugin: 'org.springframework.boot'
+apply plugin: 'io.spring.dependency-management'
+
+group = 'software.kloud'
+version = '1.0'
+sourceCompatibility = 10
+
+repositories {
+    mavenCentral()
+    mavenLocal()
+    maven {
+        url 'https://nexus.kloud.software/repository/maven-releases/'
+    }
+}
+
+
+dependencies {
+    implementation('org.springframework.boot:spring-boot-starter-data-jpa')
+    compile group: 'redis.clients', name: 'jedis', version: '2.9.0'
+    compile group: 'com.google.code.gson', name: 'gson', version: '2.8.5'
+    compile group: 'software.kloud', name: 'sc-dep', version: '1.0'
+    compile('org.springframework.boot:spring-boot-starter-security')
+    implementation('org.springframework.boot:spring-boot-starter-data-redis')
+    implementation('org.springframework.boot:spring-boot-starter-web')
+    runtimeOnly('mysql:mysql-connector-java')
+    testImplementation('org.springframework.boot:spring-boot-starter-test')
+}
