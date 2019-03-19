@@ -1,6 +1,6 @@
 package software.kloud.silver.persistence;
 
-import com.google.gson.Gson;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -8,17 +8,17 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import software.kloud.sc.SilverCommunication;
-import software.kloud.silver.redis.util.Serializer;
 import software.kloud.silver.redis.entities.Page;
+import software.kloud.silver.redis.util.Serializer;
 
-import java.lang.reflect.Type;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 public class DatabaseWriter {
-    private final static Gson gson = new Gson();
+    private final static ObjectMapper objectMapper = new ObjectMapper();
     private final RedisTemplate<String, Page> redisTemplate;
     private final ApplicationContext ctx;
     private final Serializer serializer;
@@ -43,7 +43,7 @@ public class DatabaseWriter {
     }
 
     @Scheduled(cron = "0 * * * * *")
-    public void writeToDatabase() {
+    public void writeToDatabase() throws IOException {
         Page page = redisTemplate.opsForList().rightPopAndLeftPush(WAIT_QUEUE, WORK_QUEUE);
         while (page != null) {
             writeIntern(page);
@@ -52,9 +52,10 @@ public class DatabaseWriter {
         }
     }
 
-    private <T extends SilverCommunication> void writeIntern(Page page) {
+    private <T extends SilverCommunication> void writeIntern(Page page) throws IOException {
         var clazz = page.getTypeAsClass();
-        T payload = gson.fromJson(page.getContent(), (Type) clazz);
+        //noinspection unchecked
+        T payload =  (T) objectMapper.readValue(page.getContent(), clazz);
 
         String simpleNameReplaced = payload.getClass().getSimpleName().replace("JpaRecord", "Repository");
 
