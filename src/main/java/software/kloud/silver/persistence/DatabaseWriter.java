@@ -49,11 +49,11 @@ public class DatabaseWriter {
         Page page = redisTemplate.opsForList().rightPopAndLeftPush(WAIT_QUEUE, WORK_QUEUE);
         while (page != null) {
             redisTemplate.opsForList().remove(WORK_QUEUE, 1, page);
-            page = redisTemplate.opsForList().rightPopAndLeftPush(WAIT_QUEUE, WORK_QUEUE);
             var clazz = Objects.requireNonNull(page).getTypeAsClass();
             @SuppressWarnings("unchecked")
             T payload = (T) objectMapper.readValue(page.getContent(), clazz);
             pages.add(payload);
+            page = redisTemplate.opsForList().rightPopAndLeftPush(WAIT_QUEUE, WORK_QUEUE);
         }
 
         List<T> collect = pages.stream()
