@@ -13,7 +13,6 @@ import software.kloud.silver.redis.entities.Page;
 import software.kloud.silver.redis.util.Serializer;
 
 import java.io.IOException;
-import java.lang.reflect.Type;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -72,7 +71,7 @@ public class DatabaseWriter {
             if (bean.equalsIgnoreCase(simpleNameReplaced)) {
                 //noinspection unchecked
                 JpaRepository<T, Integer> repo = ((JpaRepository<T, Integer>) ctx.getBean(bean));
-                var entity = repo.save(payload);
+                var entity = repo.saveAndFlush(payload);
                 Page newPage = null;
                 try {
                     newPage = serializer.serializeAtKey(entity, entity.getSilverIdentifier());
