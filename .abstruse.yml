@@ -1,7 +1,10 @@
 image: java_builder_docker_java12
 
 matrix:
-  - env: SCRIPT=uploadArchives
+  - env: SCRIPT=uploadImage
 
+before_script:
+  - docker login $DOCKER_USER $DOCKER_PASS
 script:
-  - echo "Hello world!"
+  - docker build . -t $IMAGE_NAME
+  - docker push $IMAGE_NAME
