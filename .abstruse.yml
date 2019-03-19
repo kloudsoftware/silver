@@ -4,7 +4,7 @@ matrix:
   - env: SCRIPT=uploadImage
 
 before_script:
-  - docker login $DOCKER_USER $DOCKER_PASS
+  - docker login registry.kloud.software -u $DOCKER_USER -p $DOCKER_PASS
 script:
   - docker build . -t $IMAGE_NAME
   - docker push $IMAGE_NAME
