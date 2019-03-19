@@ -1,0 +1,7 @@
+image: java_builder_docker_java12
+
+matrix:
+  - env: SCRIPT=uploadArchives
+
+script:
+  - echo "Hello world!"
