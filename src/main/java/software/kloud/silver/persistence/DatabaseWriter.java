@@ -1,6 +1,7 @@
 package software.kloud.silver.persistence;
 
-import com.google.gson.Gson;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -8,17 +9,16 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import software.kloud.sc.SilverCommunication;
-import software.kloud.silver.redis.util.Serializer;
 import software.kloud.silver.redis.entities.Page;
+import software.kloud.silver.redis.util.Serializer;
 
-import java.lang.reflect.Type;
-import java.util.Arrays;
-import java.util.List;
+import java.io.IOException;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
 public class DatabaseWriter {
-    private final static Gson gson = new Gson();
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private final RedisTemplate<String, Page> redisTemplate;
     private final ApplicationContext ctx;
     private final Serializer serializer;
@@ -43,27 +43,41 @@ public class DatabaseWriter {
     }
 
     @Scheduled(cron = "0 * * * * *")
-    public void writeToDatabase() {
+    public <T extends SilverCommunication> void writeToDatabase() throws IOException {
+        var pages = new ArrayList<T>();
         Page page = redisTemplate.opsForList().rightPopAndLeftPush(WAIT_QUEUE, WORK_QUEUE);
         while (page != null) {
-            writeIntern(page);
             redisTemplate.opsForList().remove(WORK_QUEUE, 1, page);
+            var clazz = Objects.requireNonNull(page).getTypeAsClass();
+            @SuppressWarnings("unchecked")
+            T payload = (T) objectMapper.readValue(page.getContent(), clazz);
+            pages.add(payload);
             page = redisTemplate.opsForList().rightPopAndLeftPush(WAIT_QUEUE, WORK_QUEUE);
         }
+
+        List<T> collect = pages.stream()
+                .sorted(Comparator.comparingInt(SilverCommunication::prioritySaveOrder))
+                .collect(Collectors.toList());
+
+        Collections.reverse(collect);
+
+        collect.forEach(this::writeIntern);
     }
 
-    private <T extends SilverCommunication> void writeIntern(Page page) {
-        var clazz = page.getTypeAsClass();
-        T payload = gson.fromJson(page.getContent(), (Type) clazz);
-
+    private <T extends SilverCommunication> void writeIntern(T payload) {
         String simpleNameReplaced = payload.getClass().getSimpleName().replace("JpaRecord", "Repository");
 
         for (String bean : this.beanNamesCache) {
             if (bean.equalsIgnoreCase(simpleNameReplaced)) {
                 //noinspection unchecked
                 JpaRepository<T, Integer> repo = ((JpaRepository<T, Integer>) ctx.getBean(bean));
-                var entity = repo.save(payload);
-                var newPage = serializer.serializeAtKey(entity, entity.getSilverIdentifier());
+                var entity = repo.saveAndFlush(payload);
+                Page newPage = null;
+                try {
+                    newPage = serializer.serializeAtKey(entity, entity.getSilverIdentifier());
+                } catch (JsonProcessingException e) {
+                    e.printStackTrace();
+                }
                 redisTemplate.opsForValue().set(entity.getSilverIdentifier(), newPage);
                 return;
             }

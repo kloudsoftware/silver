@@ -1,7 +1,8 @@
 package software.kloud.silver.persistence;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -12,13 +13,13 @@ public class KeyReader {
     private List<String> authorizedKeys = new ArrayList<>();
 
     private KeyReader() {
-        var gson = new Gson();
+        ObjectMapper objectMapper = new ObjectMapper();
         var fsWriter = new FsWriter();
         try {
             var json = fsWriter.read();
             System.out.println(json);
-            Map<String, String> map = gson.fromJson(json, new TypeToken<Map<String, String>>() {
-            }.getType());
+            Map<String, String> map = objectMapper.readValue(json, new TypeReference<Map<String, String>>() {
+            });
 
             authorizedKeys.addAll(map.keySet());
         } catch (IOException e) {
@@ -26,12 +27,12 @@ public class KeyReader {
         }
     }
 
-    public boolean isValid(String key) {
-        return authorizedKeys.contains(key);
-    }
-
     public static KeyReader getInstance() {
         return INSTANCE_HOLDER.instance;
+    }
+
+    public boolean isValid(String key) {
+        return authorizedKeys.contains(key);
     }
 
     private static class INSTANCE_HOLDER {

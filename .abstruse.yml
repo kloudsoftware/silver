@@ -1,0 +1,11 @@
+image: java_builder_docker_java12
+
+matrix:
+  - env: SCRIPT=uploadImage
+
+before_script:
+  - docker login registry.kloud.software -u $DOCKER_USER -p $DOCKER_PASS
+script:
+  - ./gradlew bootJar
+  - docker build . -t $IMAGE_NAME
+  - docker push $IMAGE_NAME

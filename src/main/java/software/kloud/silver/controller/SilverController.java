@@ -1,7 +1,7 @@
 package software.kloud.silver.controller;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonSyntaxException;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +21,7 @@ import software.kloud.silver.persistence.DatabaseReader;
 import software.kloud.silver.redis.entities.Page;
 import software.kloud.silver.redis.util.Serializer;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -30,7 +31,7 @@ import java.util.zip.CRC32;
 public class SilverController {
     private final static Logger log = LoggerFactory.getLogger(SilverController.class);
     private final static Map<String, Class<? extends SilverCommunication>> classMap = new HashMap<>();
-    private final Gson gson = new Gson();
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private final Serializer serializer;
     private final RedisTemplate<String, Page> redisTemplate;
     private final DatabaseReader dbReader;
@@ -69,15 +70,23 @@ public class SilverController {
         T data;
         try {
             //noinspection unchecked
-            data = (T) gson.fromJson(transferDTO.getPayload(), classLookup(transferDTO.getClazz()));
-        } catch (JsonSyntaxException | ClassCastException | ClassNotFoundException e) {
+            data = (T) objectMapper.readValue(transferDTO.getPayload(), classLookup(transferDTO.getClazz()));
+        } catch (ClassCastException | ClassNotFoundException | IOException e) {
             String errorMsg = "Got invalid json";
             log.error(errorMsg, e);
             return ResponseEntity.status(500).body(new StatusResponseDTO(ResponseStatus.TRANSFER_ERROR, errorMsg));
         }
 
         data.setSilverIdentifier(UUID.randomUUID().toString());
-        var redisData = serializer.serialize(data);
+        Page redisData = null;
+        try {
+            redisData = serializer.serialize(data);
+        } catch (JsonProcessingException e) {
+            String errorMsg = "Could not serialize into redis page";
+            log.error(errorMsg, e);
+            return ResponseEntity.status(500).body(new StatusResponseDTO(ResponseStatus.TRANSFER_ERROR, errorMsg));
+        }
+
         redisTemplate.opsForValue().set(redisData.getKey(), redisData);
         redisTemplate.opsForList().leftPush(WAIT_QUEUE, redisData);
 
@@ -93,7 +102,13 @@ public class SilverController {
         var page = redisTemplate.opsForValue().get(key);
 
         if (page != null) {
-            return ResponseEntity.ok(serializer.deserialize(page, page.getTypeAsClass()));
+            try {
+                return ResponseEntity.ok(serializer.deserialize(page, page.getTypeAsClass()));
+            } catch (IOException e) {
+                String errorMsg = "Could not deserialize request body";
+                log.error(errorMsg, e);
+                return ResponseEntity.status(500).body(null);
+            }
         }
 
         try {
@@ -106,11 +121,10 @@ public class SilverController {
 
                 return ResponseEntity.ok(bean);
             }
-        } catch (ClassNotFoundException e) {
+        } catch (ClassNotFoundException  | JsonProcessingException e) {
             e.printStackTrace();
             return ResponseEntity.status(500).build();
         }
-
         return ResponseEntity.notFound().build();
     }
 
